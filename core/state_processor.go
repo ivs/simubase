@@ -187,6 +187,84 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	return applyTransaction(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 }
 
+func applyTransactionWithResult(msg *Message, config *params.ChainConfig, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM) (*types.Receipt, *ExecutionResult, error) {
+	// Create a new context to be used in the EVM environment.
+	txContext := NewEVMTxContext(msg)
+	evm.Reset(txContext, statedb)
+
+	nonce := tx.Nonce()
+	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
+		nonce = statedb.GetNonce(msg.From)
+	}
+
+	// Apply the transaction to the current state (included in the env).
+	result, err := ApplyMessage(evm, msg, gp)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Update the state with pending changes.
+	var root []byte
+	if config.IsByzantium(blockNumber) {
+		statedb.Finalise(true)
+	} else {
+		root = statedb.IntermediateRoot(config.IsEIP158(blockNumber)).Bytes()
+	}
+	*usedGas += result.UsedGas
+
+	// Create a new receipt for the transaction, storing the intermediate root and gas used
+	// by the tx.
+	receipt := &types.Receipt{Type: tx.Type(), PostState: root, CumulativeGasUsed: *usedGas}
+	if result.Failed() {
+		receipt.Status = types.ReceiptStatusFailed
+	} else {
+		receipt.Status = types.ReceiptStatusSuccessful
+	}
+	receipt.TxHash = tx.Hash()
+	receipt.GasUsed = result.UsedGas
+
+	if msg.IsDepositTx && config.IsOptimismRegolith(evm.Context.Time) {
+		// The actual nonce for deposit transactions is only recorded from Regolith onwards and
+		// otherwise must be nil.
+		receipt.DepositNonce = &nonce
+		// The DepositReceiptVersion for deposit transactions is only recorded from Canyon onwards
+		// and otherwise must be nil.
+		if config.IsOptimismCanyon(evm.Context.Time) {
+			receipt.DepositReceiptVersion = new(uint64)
+			*receipt.DepositReceiptVersion = types.CanyonDepositReceiptVersion
+		}
+	}
+	if tx.Type() == types.BlobTxType {
+		receipt.BlobGasUsed = uint64(len(tx.BlobHashes()) * params.BlobTxBlobGasPerBlob)
+		receipt.BlobGasPrice = evm.Context.BlobBaseFee
+	}
+
+	// If the transaction created a contract, store the creation address in the receipt.
+	if msg.To == nil {
+		receipt.ContractAddress = crypto.CreateAddress(evm.TxContext.Origin, nonce)
+	}
+
+	// Set the receipt logs and create the bloom filter.
+	receipt.Logs = statedb.GetLogs(tx.Hash(), blockNumber.Uint64(), blockHash)
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	receipt.BlockHash = blockHash
+	receipt.BlockNumber = blockNumber
+	receipt.TransactionIndex = uint(statedb.TxIndex())
+	return receipt, result, err
+}
+
+func ApplyTransactionWithResult(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, *ExecutionResult, error) {
+	msg, err := TransactionToMessage(tx, types.MakeSigner(config, header.Number, header.Time), header.BaseFee)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Create a new context to be used in the EVM environment
+	blockContext := NewEVMBlockContext(header, bc, author, config, statedb)
+	txContext := NewEVMTxContext(msg)
+	vmenv := vm.NewEVM(blockContext, txContext, statedb, config, cfg)
+	return applyTransactionWithResult(msg, config, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+}
+
 // ProcessBeaconBlockRoot applies the EIP-4788 system call to the beacon block root
 // contract. This method is exported to be used in tests.
 func ProcessBeaconBlockRoot(beaconRoot common.Hash, vmenv *vm.EVM, statedb *state.StateDB) {

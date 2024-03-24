@@ -1283,6 +1283,51 @@ func (s *BlockChainAPI) Call(ctx context.Context, args TransactionArgs, blockNrO
 	return result.Return(), result.Err
 }
 
+type SimulateTxsArgs struct {
+	Tx    hexutil.Bytes          `json:"txs"`
+	Block *rpc.BlockNumberOrHash `json:"block"`
+}
+
+func (s *BlockChainAPI) SimulateTxs(ctx context.Context, args SimulateTxsArgs) (*types.Receipt, *core.ExecutionResult, error) {
+	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
+	tx := new(types.Transaction)
+	if err := tx.UnmarshalBinary(args.Tx); err != nil {
+		return nil, nil, err
+	}
+	latest := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	blockNrOrHash := &latest
+	if args.Block != nil {
+		blockNrOrHash = args.Block
+	}
+
+	state, parent, err := s.b.StateAndHeaderByNumberOrHash(ctx, *blockNrOrHash)
+	if state == nil || err != nil {
+		return nil, nil, err
+	}
+
+	var baseFee *big.Int
+
+	if s.b.ChainConfig().IsLondon(parent.Number) {
+		baseFee = eip1559.CalcBaseFee(s.b.ChainConfig(), parent, parent.Time+1)
+	}
+	header := &types.Header{
+		ParentHash: parent.Hash(),
+		Number:     big.NewInt(0).Add(parent.Number, big.NewInt(1)),
+		GasLimit:   parent.GasLimit,
+		Time:       parent.Time + 1,
+		Difficulty: parent.Difficulty,
+		Coinbase:   parent.Coinbase,
+		BaseFee:    baseFee,
+	}
+
+	vmconfig := vm.Config{}
+
+	gp := new(core.GasPool).AddGas(math.MaxUint64)
+
+	state.SetTxContext(tx.Hash(), 0)
+	return core.ApplyTransactionWithResult(s.b.ChainConfig(), s.b.Chain(), &parent.Coinbase, gp, state, header, tx, &header.GasUsed, vmconfig)
+}
+
 // DoEstimateGas returns the lowest possible gas limit that allows the transaction to run
 // successfully at block `blockNrOrHash`. It returns error if the transaction would revert, or if
 // there are unexpected failures. The gas limit is capped by both `args.Gas` (if non-nil &

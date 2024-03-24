@@ -451,3 +451,7 @@ func (b *EthAPIBackend) HistoricalRPCService() *rpc.Client {
 func (b *EthAPIBackend) Genesis() *types.Block {
 	return b.eth.blockchain.Genesis()
 }
+
+func (b *EthAPIBackend) Chain() *core.BlockChain {
+	return b.eth.BlockChain()
+}
