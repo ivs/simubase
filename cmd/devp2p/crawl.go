@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -53,6 +54,7 @@ type resolver interface {
 }
 
 func newCrawler(input nodeSet, bootnodes []*enode.Node, disc resolver, iters ...enode.Iterator) (*crawler, error) {
+	spew.Dump(bootnodes)
 	if len(input) == 0 {
 		input.add(bootnodes...)
 	}

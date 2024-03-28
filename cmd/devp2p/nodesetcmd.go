@@ -227,6 +227,7 @@ func minAgeFilter(args []string) (nodeFilter, error) {
 
 func ethFilter(args []string) (nodeFilter, error) {
 	var filter forkid.Filter
+
 	switch args[0] {
 	case "mainnet":
 		filter = forkid.NewStaticFilter(params.MainnetChainConfig, core.DefaultGenesisBlock().ToBlock())
@@ -236,6 +237,8 @@ func ethFilter(args []string) (nodeFilter, error) {
 		filter = forkid.NewStaticFilter(params.SepoliaChainConfig, core.DefaultSepoliaGenesisBlock().ToBlock())
 	case "holesky":
 		filter = forkid.NewStaticFilter(params.HoleskyChainConfig, core.DefaultHoleskyGenesisBlock().ToBlock())
+	case "base":
+		filter = forkid.NewStaticFilter(params.BaseChainConfig, core.DefaultBaseGenesisBlock().ToBlock())
 	default:
 		return nil, fmt.Errorf("unknown network %q", args[0])
 	}

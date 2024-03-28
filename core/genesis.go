@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
@@ -603,6 +604,13 @@ func DefaultGenesisBlock() *Genesis {
 		Difficulty: big.NewInt(17179869184),
 		Alloc:      decodePrealloc(mainnetAllocData),
 	}
+}
+
+func DefaultBaseGenesisBlock() *Genesis {
+	genesisJson, _ := os.ReadFile("genesis-l2.json")
+	var genesis Genesis
+	_ = json.Unmarshal(genesisJson, &genesis)
+	return &genesis
 }
 
 // DefaultGoerliGenesisBlock returns the Görli network genesis block.

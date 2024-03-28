@@ -1974,6 +1974,8 @@ func marshalReceipt(receipt *types.Receipt, blockHash common.Hash, blockNumber u
 		"logsBloom":         receipt.Bloom,
 		"type":              hexutil.Uint(tx.Type()),
 		"effectiveGasPrice": (*hexutil.Big)(receipt.EffectiveGasPrice),
+		"input":             hexutil.Bytes(tx.Data()),
+		"value":             (*hexutil.Big)(tx.Value()),
 	}
 
 	if chainConfig.Optimism != nil && !tx.IsDepositTx() {

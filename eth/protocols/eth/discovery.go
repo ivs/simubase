@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -59,6 +60,7 @@ func StartENRUpdater(chain *core.BlockChain, ln *enode.LocalNode) {
 
 // currentENREntry constructs an `eth` ENR entry based on the current state of the chain.
 func currentENREntry(chain *core.BlockChain) *enrEntry {
+	spew.Dump(chain.Config())
 	head := chain.CurrentHeader()
 	return &enrEntry{
 		ForkID: forkid.NewID(chain.Config(), chain.Genesis(), head.Number.Uint64(), head.Time),

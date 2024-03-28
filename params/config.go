@@ -85,6 +85,16 @@ var (
 		ShanghaiTime:                  newUint64(1681338455),
 		Ethash:                        new(EthashConfig),
 	}
+
+	BaseChainConfig = func() *ChainConfig {
+		conf := *AllCliqueProtocolChanges // copy the config
+		conf.Clique = nil
+		conf.TerminalTotalDifficultyPassed = true
+		conf.BedrockBlock = big.NewInt(5)
+		conf.Optimism = &OptimismConfig{EIP1559Elasticity: 6, EIP1559Denominator: 50}
+		return &conf
+	}()
+
 	// HoleskyChainConfig contains the chain parameters to run a node on the Holesky test network.
 	HoleskyChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(17000),
